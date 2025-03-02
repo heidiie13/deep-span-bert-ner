@@ -59,20 +59,20 @@ model = extractor_config.instantiate()
 num_params, trainable_params = count_parameters(model)
 logger.info(f"Number of parameters: {num_params}, trainable parameters: {trainable_params}")
 
-# optimizer = optim.Adam(model.parameters(), lr=2e-5, weight_decay=0.01)
-# scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3)
-# trainer = Trainer(model, optimizer, scheduler=scheduler, grad_clip=5.0, use_amp=True, device=device)
+optimizer = optim.Adam(model.parameters(), lr=2e-5, weight_decay=0.01)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3)
+trainer = Trainer(model, optimizer, scheduler=scheduler, grad_clip=5.0, use_amp=True, device=device)
 
-# trainer.train(test_dataloader, test_dataloader, num_epochs=1, early_stop_patience=5, checkpoint_path=f"{name_data}_best_model.pth")
+trainer.train(test_dataloader, test_dataloader, num_epochs=1, early_stop_patience=5, checkpoint_path=f"{name_data}_best_model.pth")
 
-# logger.info("=============Evaluation=============")
+logger.info("=============Evaluation=============")
 
-# evaluate_entity_recognition(trainer, test_dataset)
+evaluate_entity_recognition(trainer, test_dataset)
 
-# loaded_model = extractor_config.instantiate()
-# loaded_model.load_state_dict(torch.load("best_model.pth", weights_only=True))
-# loaded_trainer = Trainer(loaded_model, optimizer=None, device=device)
-# pred_chunks = loaded_trainer.predict(test_dataset)
-# print("Predicted chunks from loaded model:", pred_chunks)
+loaded_model = extractor_config.instantiate()
+loaded_model.load_state_dict(torch.load("best_model.pth", weights_only=True))
+loaded_trainer = Trainer(loaded_model, optimizer=None, device=device)
+pred_chunks = loaded_trainer.predict(test_dataset)
+print("Predicted chunks from loaded model:", pred_chunks)
 
-# logger.info("=============Ending=============")
+logger.info("=============Ending=============")
