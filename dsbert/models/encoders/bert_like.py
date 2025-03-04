@@ -3,8 +3,8 @@ import torch
 from transformers import PreTrainedTokenizer, PreTrainedModel
 from torch import nn
 
-from dspert.nn_modules.aggregation import SequenceGroupAggregating
-from dspert.utils import seq_lens2mask
+from dsbert.nn_modules.aggregation import SequenceGroupAggregating
+from dsbert.utils import seq_lens2mask
 
 class BertLikeConfig:
     def __init__(self, **kwargs):

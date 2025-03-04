@@ -10,7 +10,7 @@ class EncoderConfig:
         
         self.num_layers = kwargs.pop('num_layers', 1)
         
-        self.in_drop_rates = kwargs.pop('in_drop_rates', 0.0)
+        self.in_drop_rates = kwargs.pop('in_drop_rates', 0.5)
         self.hid_drop_rate = kwargs.pop('hid_drop_rate', 0.5)
         
         if self.arch not in ['IDENTITY', 'FFN', 'LSTM', 'GRU']:

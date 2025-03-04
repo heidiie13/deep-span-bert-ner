@@ -5,23 +5,20 @@ import logging
 import torch
 import torch.nn as nn
 
-from dspert.models.encoders.encode import EncoderConfig
+from dsbert.models.encoders.encode import EncoderConfig
 
 logger = logging.getLogger(__name__)
 
-class SpecificSpanClsDecoderConfig:
+class DeepSpanClsDecoderConfig:
     def __init__(self, **kwargs):
-        # Cấu hình mạng affine (FFN đơn giản)
         self.affine = kwargs.pop('affine', EncoderConfig(arch='FFN', hid_dim=300, num_layers=1, hid_drop_rate=0.2))
         
-        # Giới hạn kích thước span tối đa
         self.max_span_size_ceiling = kwargs.pop('max_span_size_ceiling', 25)
         self.max_span_size = kwargs.pop('max_span_size', None)
         self.size_emb_dim = kwargs.pop('size_emb_dim', 25)
         self.hid_drop_rate = kwargs.pop('hid_drop_rate', 0.2)
         self.criterion = kwargs.pop('criterion', 'CrossEntropy')
         
-        # Nhãn và từ vựng
         self.none_label = kwargs.pop('none_label', '<none>')
         self.idx2label = kwargs.pop('idx2label', None)
         
@@ -45,18 +42,11 @@ class SpecificSpanClsDecoderConfig:
             return torch.nn.CrossEntropyLoss(**kwargs)
     
     def exemplify(self, entry: Dict) -> Dict:
-        """
-        Chuyển đổi một entry thành định dạng phù hợp với decoder.
-        - entry: Dictionary chứa 'tokens' và 'chunks' (danh sách (label, start, end)).
-        - Trả về: Dictionary chứa 'boundaries_obj' với 'label_ids'.
-        """
         seq_len = len(entry['tokens'])
         total_spans = sum(seq_len - k + 1 for k in range(1, min(self.max_span_size, seq_len) + 1))
         
-        # Khởi tạo label_ids với nhãn mặc định là none_label
         label_ids = torch.full((total_spans,), self.idx2label.index(self.none_label), dtype=torch.long)
         
-        # Tạo danh sách spans tương ứng
         spans = [(start, start + k) for k in range(1, min(self.max_span_size, seq_len) + 1) 
                  for start in range(seq_len - k + 1)]
         
@@ -87,7 +77,6 @@ class SpecificSpanClsDecoderConfig:
             self.idx2label = [self.none_label] + self.idx2label
         logger.info(f"Labels: {self.idx2label}")
         
-        # Calculate `max_span_size` according to data
         span_sizes = [end-start for data in partitions for entry in data for label, start, end in entry['chunks']]
         logger.info(f"Max span size in data: {max(span_sizes)}")
         
@@ -106,10 +95,10 @@ class SpecificSpanClsDecoderConfig:
             logger.warning(f"OOV positive spans: {num_oov_spans} ({num_oov_spans/num_spans*100:.2f}%) with max_span_size: {self.max_span_size}")
             
     def instantiate(self):
-        return SpecificSpanClsDecoder(self)
+        return DeepSpanClsDecoder(self)
 
-class SpecificSpanClsDecoder(nn.Module):
-    def __init__(self, config: SpecificSpanClsDecoderConfig):
+class DeepSpanClsDecoder(nn.Module):
+    def __init__(self, config: DeepSpanClsDecoderConfig):
         super().__init__()
         
         self.max_span_size = config.max_span_size
@@ -130,32 +119,26 @@ class SpecificSpanClsDecoder(nn.Module):
 
     def get_logits(self, batch: Dict, full_hidden: torch.Tensor, all_query_hidden: Dict[int, torch.Tensor]):
         """
-        Tính toán logits từ full_hidden và all_query_hidden.
-        Đầu vào:
+        Args:
         - full_hidden: [batch_size, seq_len, hid_dim]
         - all_query_hidden: {k: [batch_size, seq_len - k + 1, hid_dim]}
         """
         batch_logits = []
         for i, curr_len in enumerate(batch["seq_lens"].cpu().tolist()):
-            # Thu thập hidden states cho tất cả các span từ 1 đến max_span_size
             span_hidden = []
             for k in range(1, min(self.max_span_size, curr_len) + 1):
                 if k == 1:
-                    # Span kích thước 1: sử dụng full_hidden
                     span_hidden.append(full_hidden[i, :curr_len, :])
                 else:   
-                    # Span kích thước k > 1: sử dụng all_query_hidden
                     span_hidden.append(all_query_hidden[k][i, :curr_len - k + 1, :])
             span_hidden = torch.cat(span_hidden, dim=0)  # [total_spans, hid_dim]
 
-            # Thêm size embedding nếu có
             if hasattr(self, 'size_embedding'):
                 size_ids = torch.cat([torch.full((curr_len - k + 1,), k, dtype=torch.long, device=span_hidden.device) 
                                      for k in range(1, min(self.max_span_size, curr_len) + 1)], dim=0)
                 size_embedded = self.size_embedding(size_ids)
                 span_hidden = torch.cat([span_hidden, size_embedded], dim=-1)
             
-            # Tính logits
             affined = self.affine(span_hidden)
             logits = self.hid2logit(self.dropout(affined))
             batch_logits.append(logits)
@@ -163,9 +146,6 @@ class SpecificSpanClsDecoder(nn.Module):
         return batch_logits
 
     def forward(self, batch: Dict, full_hidden: torch.Tensor, all_query_hidden: Dict[int, torch.Tensor]):
-        """
-        Tính toán loss từ batch.
-        """
         batch_logits = self.get_logits(batch, full_hidden, all_query_hidden)
         
         losses = []
@@ -178,7 +158,8 @@ class SpecificSpanClsDecoder(nn.Module):
 
     def decode(self, batch: Dict, full_hidden: torch.Tensor, all_query_hidden: Dict[int, torch.Tensor]):
         """
-        Giải mã để lấy danh sách các chunk (label, start, end).
+        Returns:
+            Dict (label, start, end).
         """
         batch_logits = self.get_logits(batch, full_hidden, all_query_hidden)
         
@@ -194,10 +175,7 @@ class SpecificSpanClsDecoder(nn.Module):
             chunks = [(label, start, end) for label, (start, end) in zip(labels, spans) if label != self.none_label]
             batch_chunks.append(chunks)
         
-        return batch_chunks
-    
-    from typing import List, Tuple
-    
+        return batch_chunks    
     
 def reinit_embedding_(embedding: nn.Embedding):
     """Reinitialize an embedding layer with a Gaussian distribution."""

@@ -1,8 +1,8 @@
 from typing import List
 import torch
 
-from dspert.models.specific_span_extractor import SpecificSpanExtractorConfig
-from dspert.utils import seq_lens2mask
+from dsbert.models.deep_span_extractor import SpecificSpanExtractorConfig
+from dsbert.utils import seq_lens2mask
 
 
 class Dataset(torch.utils.data.Dataset):

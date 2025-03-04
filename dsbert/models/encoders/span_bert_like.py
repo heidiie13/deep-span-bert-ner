@@ -2,8 +2,8 @@ from typing import List
 import torch
 import transformers
 
-from dspert.nn_modules.aggregation import SequencePooling, SequenceAttention
-from dspert.models.encoders.query_bert_like import QueryBertLikeEncoder
+from dsbert.nn_modules.aggregation import SequencePooling, SequenceAttention
+from dsbert.models.encoders.query_bert_like import QueryBertLikeEncoder
 
 
 class SpanBertLikeConfig:

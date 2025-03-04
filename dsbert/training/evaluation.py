@@ -1,6 +1,6 @@
 import logging
 from typing import List, Tuple
-from dspert.dataset import Dataset
+from dsbert.dataset import Dataset
 logger = logging.getLogger(__name__)
 
 def precision_recall_f1_report(y_gold: List[List[Tuple[str, int, int]]], y_pred: List[List[Tuple[str, int, int]]]) -> Tuple[float, float, float]:
@@ -19,6 +19,9 @@ def precision_recall_f1_report(y_gold: List[List[Tuple[str, int, int]]], y_pred:
     Tuple[float, float, float]
         Precision, Recall, F1 scores (micro-average).
     """
+    if len(y_gold) != len(y_pred):
+        raise ValueError(f"Length mismatch: y_gold ({len(y_gold)}) and y_pred ({len(y_pred)}) must have the same length.")
+    
     n_gold = sum(len(sample) for sample in y_gold)
     n_pred = sum(len(sample) for sample in y_pred)
     n_true_positive = sum(len(set(g) & set(p)) for g, p in zip(y_gold, y_pred))
@@ -50,18 +53,14 @@ def evaluate_entity_recognition(trainer, dataset: Dataset, batch_size: int = 32,
     save_preds : bool, optional
         Save predictions into dataset.data if True (default: False).
     """
-    # Dự đoán chunks
     set_y_pred = trainer.predict(dataset, batch_size=batch_size)
 
     if save_preds:
-        # Lưu dự đoán vào dataset.data
         for ex, chunks_pred in zip(dataset.data, set_y_pred):
             ex['chunks_pred'] = chunks_pred
         logger.info("ER | Predictions saved")
     else:
-        # Lấy ground truth từ dataset
         set_y_gold = [ex['chunks'] for ex in dataset.data]
         
-        # Tính điểm
         precision, recall, f1 = precision_recall_f1_report(set_y_gold, set_y_pred)
         _disp_prf(precision, recall, f1)

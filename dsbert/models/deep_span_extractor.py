@@ -1,13 +1,13 @@
 from typing import List, Dict, Union
 import torch.nn as nn
-from dspert.models.encoders.encode import EncoderConfig
-from dspert.models.decoders.specific_span_classification import SpecificSpanClsDecoderConfig
-from dspert.models.encoders.bert_like import BertLikeConfig
-from dspert.models.encoders.span_bert_like import SpanBertLikeConfig
+from dsbert.models.encoders.encode import EncoderConfig
+from dsbert.models.deep_span_classification import DeepSpanClsDecoderConfig
+from dsbert.models.encoders.bert_like import BertLikeConfig
+from dsbert.models.encoders.span_bert_like import SpanBertLikeConfig
 import torch
 
 class SpecificSpanExtractorConfig:
-    def __init__(self, decoder: SpecificSpanClsDecoderConfig, **kwargs):
+    def __init__(self, decoder: DeepSpanClsDecoderConfig, **kwargs):
         self.bert_like: BertLikeConfig = kwargs.pop('bert_like', None)
         self.span_bert_like: SpanBertLikeConfig = kwargs.pop('span_bert_like', None)
         self.intermediate2: EncoderConfig = kwargs.pop('intermediate2', EncoderConfig(arch='LSTM', hid_dim=400))
@@ -24,7 +24,10 @@ class SpecificSpanExtractorConfig:
         if self.max_span_size is not None:  
             self.decoder.max_span_size = self.max_span_size
             self.span_bert_like.max_span_size = self.max_span_size
-        
+    
+    @property
+    def name(self):
+        return self.span_bert_like.name + f"({self.decoder.name})"
     def build_vocabs(self, *partitions):
         self.decoder.build_vocab(*partitions)
         self.max_span_size = self.decoder.max_span_size
@@ -40,29 +43,23 @@ class SpecificSpanExtractorConfig:
             return ConfigList([self.intermediate2 for k in range(2, self.span_bert_like.max_span_size+1)])
         
     def exemplify(self, entry: Dict) -> Dict:
-        """Chuyển đổi một entry thành định dạng phù hợp."""
         example = {}
         example['bert_like'] = self.bert_like.exemplify(entry)
         example.update(self.decoder.exemplify(entry))
         return example
     
     def batchify(self, batch_examples: List[Dict]) -> Dict:
-        """Tạo batch từ danh sách examples."""
         batch = {}
         batch['bert_like'] = self.bert_like.batchify([ex['bert_like'] for ex in batch_examples])
         batch.update(self.decoder.batchify(batch_examples))
         return batch
     
     def instantiate(self):
-        """Khởi tạo SpecificSpanExtractor."""
         return SpecificSpanExtractor(self)
 
 
 class SpecificSpanExtractor(nn.Module):
     def __init__(self, config: SpecificSpanExtractorConfig):
-        """
-        Extractor cho các span cụ thể, tối ưu hóa hiệu suất.
-        """
         super().__init__()
         
         self.bert_like = config.bert_like.instantiate()
@@ -73,7 +70,6 @@ class SpecificSpanExtractor(nn.Module):
         self.max_span_size = config.max_span_size
         
     def forward2states(self, batch: Dict) -> Dict:
-        """Chuyển batch thành các trạng thái hidden."""
         bert_hidden, all_bert_hidden = self.bert_like(batch['bert_like']['sub_tok_ids'], 
                                                     batch['bert_like']['sub_mask'], 
                                                     batch['bert_like']['ori_indexes'])
@@ -101,7 +97,7 @@ class SpecificSpanExtractor(nn.Module):
         
         return {'full_hidden': bert_hidden, 'all_query_hidden': all_last_query_states}
     
-    def forward(self, batch: Dict, return_states: bool = False) -> Union[Dict, tuple]:
+    def forward(self, batch: Dict, return_states: bool = True) -> Union[Dict, tuple]:
         states = self.forward2states(batch)
         losses = self.decoder(batch, **states)
         
@@ -120,5 +116,4 @@ class ConfigList():
         self.config_list = config_list
         
     def instantiate(self):
-        return nn.ModuleList([c.instantiate() for c in self.config_list])                    # if span_mask.sum() == 0:  # Nếu mask toàn 0
-                    #     span_mask = torch.ones_like(span_mask)  # Đặt ít nhất 1 giá trị hợp lệ
+        return nn.ModuleList([c.instantiate() for c in self.config_list])
