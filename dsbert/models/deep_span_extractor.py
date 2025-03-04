@@ -6,7 +6,7 @@ from dsbert.models.encoders.bert_like import BertLikeConfig
 from dsbert.models.encoders.span_bert_like import SpanBertLikeConfig
 import torch
 
-class SpecificSpanExtractorConfig:
+class DeepSpanExtractorConfig:
     def __init__(self, decoder: DeepSpanClsDecoderConfig, **kwargs):
         self.bert_like: BertLikeConfig = kwargs.pop('bert_like', None)
         self.span_bert_like: SpanBertLikeConfig = kwargs.pop('span_bert_like', None)
@@ -55,11 +55,11 @@ class SpecificSpanExtractorConfig:
         return batch
     
     def instantiate(self):
-        return SpecificSpanExtractor(self)
+        return DeepSpanExtractor(self)
 
 
-class SpecificSpanExtractor(nn.Module):
-    def __init__(self, config: SpecificSpanExtractorConfig):
+class DeepSpanExtractor(nn.Module):
+    def __init__(self, config: DeepSpanExtractorConfig):
         super().__init__()
         
         self.bert_like = config.bert_like.instantiate()

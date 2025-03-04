@@ -6,14 +6,14 @@ from torch.amp import GradScaler, autocast
 from tqdm import tqdm
 from typing import List, Tuple, Dict, Optional
 from dsbert.training.evaluation import precision_recall_f1_report
-from dsbert.models.deep_span_extractor import SpecificSpanExtractor
+from dsbert.models.deep_span_extractor import DeepSpanExtractor
 from dsbert.dataset import Dataset
 
 logger = logging.getLogger(__name__)
 
 class Trainer:
     def __init__(self, 
-                 model: SpecificSpanExtractor, 
+                 model: DeepSpanExtractor, 
                  optimizer: torch.optim.Optimizer, 
                  scheduler: Optional[torch.optim.lr_scheduler.LambdaLR] = None, 
                  grad_clip: Optional[float] = None, 
@@ -87,7 +87,7 @@ class Trainer:
                 batch = self._to_device(batch)
                 with autocast('cuda', enabled=self.use_amp):
                     losses, states = self.model.forward(batch)
-                pred_chunks = self.model.decode(batch, states)
+                pred_chunks = self.model.decode(batch, **states)
 
                 epoch_losses.append(losses.mean().item())
                 all_pred_chunks.extend(pred_chunks)
@@ -112,14 +112,6 @@ class Trainer:
 
         return all_pred_chunks
 
-    def _save_checkpoint(self, eval_loss: float, checkpoint_path: str, best_eval_loss: float) -> float:
-        """Save model checkpoint if evaluation loss improves."""
-        if eval_loss < best_eval_loss:
-            logger.info(f"New best eval loss: {eval_loss:.4f}, saving checkpoint to {checkpoint_path}")
-            torch.save(self.model.state_dict(), checkpoint_path)
-            return eval_loss
-        return best_eval_loss
-
     def train(self, 
               train_dataloader: DataLoader, 
               eval_dataloader: Optional[DataLoader] = None, 
@@ -137,10 +129,15 @@ class Trainer:
 
             if eval_dataloader is not None:
                 eval_loss, pred_chunks = self.eval_epoch(eval_dataloader)
-                best_eval_loss = self._save_checkpoint(eval_loss, checkpoint_path, best_eval_loss)
-
-                patience_counter = patience_counter + 1 if eval_loss >= best_eval_loss else 0
-                logger.info(f"Patience counter: {patience_counter}/{early_stop_patience}")
+                
+                if eval_loss < best_eval_loss:
+                    best_eval_loss = eval_loss
+                    patience_counter = 0
+                    torch.save(self.model.state_dict(), checkpoint_path)
+                    logger.info(f"New best eval loss: {eval_loss:.4f}, saving checkpoint to {checkpoint_path}")
+                else:
+                    patience_counter += 1
+                    logger.info(f"Patience counter: {patience_counter}/{early_stop_patience}")
 
                 if patience_counter >= early_stop_patience:
                     logger.info("Early stopping triggered.")

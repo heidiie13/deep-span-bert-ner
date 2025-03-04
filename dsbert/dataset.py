@@ -1,12 +1,12 @@
 from typing import List
 import torch
 
-from dsbert.models.deep_span_extractor import SpecificSpanExtractorConfig
+from dsbert.models.deep_span_extractor import DeepSpanExtractorConfig
 from dsbert.utils import seq_lens2mask
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, data: List[dict], config: SpecificSpanExtractorConfig, training: bool=True):
+    def __init__(self, data: List[dict], config: DeepSpanExtractorConfig, training: bool=True):
         """
         Parameters
         ----------
