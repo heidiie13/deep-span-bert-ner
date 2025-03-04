@@ -34,18 +34,22 @@ def convert_bio_to_json(file_path: str, output_json_path: str = "output.json") -
     current_tokens = []
     current_tags = []
     
-    for line in lines:
+    for i, line in enumerate(lines, 1):
         line = line.strip()
         if line:
-            token, tag = line.rsplit(' ', 1)
-            current_tokens.append(token)
-            current_tags.append(tag)
+            parts = line.rsplit(' ', 1)
+            if len(parts) == 2:
+                token, tag = parts
+                current_tokens.append(token)
+                current_tags.append(tag)
+            else: 
+                print(f"Warning: Invalid line format at line {i}: '{line}'. Skipping this line.")        
         else:
             if current_tokens:
                 samples.append((current_tokens, current_tags))
                 current_tokens = []
                 current_tags = []
-    
+
     if current_tokens:
         samples.append((current_tokens, current_tags))
     
@@ -94,3 +98,6 @@ if __name__=="__main__":
     convert_bio_to_json("data/origin_data/phoner_covid19/test.conll", "data/processed_data/phoner_covid19/test.json")
     convert_bio_to_json("data/origin_data/phoner_covid19/dev.conll", "data/processed_data/phoner_covid19/dev.json")
     convert_bio_to_json("data/origin_data/phoner_covid19/train.conll", "data/processed_data/phoner_covid19/train.json")
+    convert_bio_to_json("data/origin_data/vimedner/test.txt", "data/processed_data/vimedner/test.json")
+    convert_bio_to_json("data/origin_data/vimedner/dev.txt", "data/processed_data/vimedner/dev.json")
+    convert_bio_to_json("data/origin_data/vimedner/train.txt", "data/processed_data/vimedner/train.json")
