@@ -33,11 +33,9 @@ def load_pretrained(pretrained_str):
     model_name = pretrained_str
     model_path = f"assets/transformers/{model_name}"
 
-    # Load pre-trained model
     pretrained_model = AutoModel.from_pretrained(model_path)
 
-    # Load pre-trained tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
 
     return pretrained_model, tokenizer
 

@@ -78,9 +78,9 @@ if __name__ == "__main__":
         max_span_size=args.max_span_size
     )
 
-    train_dataset = Dataset(train_data[0:30], extractor_config)
-    dev_dataset = Dataset(dev_data[0:20], extractor_config)
-    test_dataset = Dataset(test_data[0:10], extractor_config)
+    train_dataset = Dataset(train_data, extractor_config)
+    dev_dataset = Dataset(dev_data, extractor_config)
+    test_dataset = Dataset(test_data, extractor_config)
 
     train_dataset.build_vocabs(dev_data, test_data)
 
@@ -106,7 +106,9 @@ if __name__ == "__main__":
     trainer.train(train_dataloader, dev_dataloader, num_epochs=args.num_epochs, accumulation_steps=args.accumulation_steps, early_stop_patience=args.early_stop_patience, checkpoint_path=f"{save_path}/dsbert_best_model.pth")
 
     logger.info("=============Evaluation=============")
-
+    
+    model = torch.load(f"{save_path}/dsbert_best_model.pth", map_location=device)
+    trainer = Trainer(model, optimizer=None, device=device)
     evaluate_entity_recognition(trainer, test_dataset)
 
     logger.info("=============Ending=============")

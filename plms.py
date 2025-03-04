@@ -1,6 +1,6 @@
 from transformers import AutoModel, AutoTokenizer
 
-model_name_list = ["roberta-base","bert-base-uncased","vinai/phobert-base"]
+model_name_list = ["roberta-base","bert-base-uncased","vinai/phobert-base", ""]
 
 for model_name in model_name_list:
     tokenizer = AutoTokenizer.from_pretrained(model_name)
