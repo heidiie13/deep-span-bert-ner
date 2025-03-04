@@ -1,5 +1,6 @@
 import argparse
 import logging
+import sys
 import os
 import datetime
 import torch
@@ -7,7 +8,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from transformers.optimization import get_linear_schedule_with_warmup
 
-from dsbert.models.deep_span_extractor import SpecificSpanExtractorConfig
+from dsbert.models.deep_span_extractor import DeepSpanExtractorConfig
 from dsbert.models.deep_span_classification import DeepSpanClsDecoderConfig
 from dsbert.models.encoders.bert_like import BertLikeConfig
 from dsbert.models.encoders.span_bert_like import SpanBertLikeConfig
@@ -51,7 +52,7 @@ if __name__ == "__main__":
         
         handlers=[
             logging.FileHandler(f"{save_path}/training.log"),
-            logging.StreamHandler()
+            logging.StreamHandler(sys.stdout)
         ]
     )
     
@@ -70,16 +71,16 @@ if __name__ == "__main__":
     bert_like_config = BertLikeConfig(tokenizer=tokenizer, bert_like=bert_model, freeze=args.bert_freeze)
     span_bert_like_config = SpanBertLikeConfig(bert_like=bert_model, freeze=args.bert_freeze, share_weights_ext=args.share_weights_ext, share_weights_int=args.share_weights_int, num_layers=args.num_layers)
     decoder_config = DeepSpanClsDecoderConfig()
-    extractor_config = SpecificSpanExtractorConfig(
+    extractor_config = DeepSpanExtractorConfig(
         decoder=decoder_config,
         bert_like=bert_like_config,
         span_bert_like=span_bert_like_config,
         max_span_size=args.max_span_size
     )
 
-    train_dataset = Dataset(train_data, extractor_config)
-    dev_dataset = Dataset(dev_data, extractor_config)
-    test_dataset = Dataset(test_data, extractor_config)
+    train_dataset = Dataset(train_data[0:30], extractor_config)
+    dev_dataset = Dataset(dev_data[0:20], extractor_config)
+    test_dataset = Dataset(test_data[0:10], extractor_config)
 
     train_dataset.build_vocabs(dev_data, test_data)
 
