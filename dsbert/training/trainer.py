@@ -96,7 +96,7 @@ class Trainer:
         true_chunks = [sample['chunks'] for sample in dataloader.dataset.data]
         precision, recall, f1 = precision_recall_f1_report(true_chunks, all_pred_chunks)
         logger.info(f"Eval Loss: {avg_loss:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
-        return avg_loss, all_pred_chunks
+        return avg_loss, all_pred_chunks, f1
 
     def predict(self, dataset: Dataset, batch_size: int = 32) -> List:
         """Generate predictions for a dataset."""
@@ -113,14 +113,16 @@ class Trainer:
         return all_pred_chunks
 
     def train(self, 
-              train_dataloader: DataLoader, 
-              eval_dataloader: Optional[DataLoader] = None, 
-              num_epochs: int = 10, 
-              early_stop_patience: int = 3, 
-              checkpoint_path: str = "best_model.pth",
-              accumulation_steps: int = 1):
+            train_dataloader: DataLoader, 
+            eval_dataloader: Optional[DataLoader] = None, 
+            num_epochs: int = 10, 
+            early_stop_patience: int = 3, 
+            checkpoint_path: str = "best_model.pth",
+            accumulation_steps: int = 1,
+            save_by_loss: bool = False):
         """Train the model over multiple epochs."""
         best_eval_loss = float('inf')
+        best_eval_f1 = -float('inf')
         patience_counter = 0
 
         for epoch in range(num_epochs):
@@ -128,16 +130,26 @@ class Trainer:
             train_loss = self.train_epoch(train_dataloader, accumulation_steps)
 
             if eval_dataloader is not None:
-                eval_loss, pred_chunks = self.eval_epoch(eval_dataloader)
-                
-                if eval_loss < best_eval_loss:
-                    best_eval_loss = eval_loss
-                    patience_counter = 0
-                    torch.save(self.model.state_dict(), checkpoint_path)
-                    logger.info(f"New best eval loss: {eval_loss:.4f}, saving checkpoint to {checkpoint_path}")
+                eval_loss, pred_chunks, f1 = self.eval_epoch(eval_dataloader)
+
+                if save_by_loss:
+                    if eval_loss < best_eval_loss:
+                        best_eval_loss = eval_loss
+                        patience_counter = 0
+                        torch.save(self.model.state_dict(), checkpoint_path)
+                        logger.info(f"New best eval loss: {eval_loss:.4f}, saving checkpoint to {checkpoint_path}")
+                    else:
+                        patience_counter += 1
                 else:
-                    patience_counter += 1
-                    logger.info(f"Patience counter: {patience_counter}/{early_stop_patience}")
+                    if f1 > best_eval_f1:
+                        best_eval_f1 = f1
+                        patience_counter = 0
+                        torch.save(self.model.state_dict(), checkpoint_path)
+                        logger.info(f"New best F1-score: {f1:.4f}, saving checkpoint to {checkpoint_path}")
+                    else:
+                        patience_counter += 1
+
+                logger.info(f"Patience counter: {patience_counter}/{early_stop_patience}")
 
                 if patience_counter >= early_stop_patience:
                     logger.info("Early stopping triggered.")

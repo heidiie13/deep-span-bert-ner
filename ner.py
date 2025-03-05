@@ -46,6 +46,7 @@ def parse_to_args(parser: argparse.ArgumentParser):
     parser.add_argument("--early_stop_patience", type=int, default=3, help="early_stop_patience")
     parser.add_argument("--accumulation_steps", type=int, default=1, help="accumulation_steps")
     parser.add_argument("--seed", type=int, default=42, help="seed")
+    parser.add_argument("--save_by_loss", default=False, action="store_true", help="save_by_loss")
     
     return parser.parse_args()
 
@@ -123,7 +124,14 @@ if __name__ == "__main__":
     trainer = Trainer(model, optimizer, scheduler=scheduler, grad_clip=args.grad_clip, use_amp=True, device=device)
 
     torch.save(extractor_config, f"{save_path}/dsbert_config.pth")
-    trainer.train(train_dataloader, dev_dataloader, num_epochs=args.num_epochs, accumulation_steps=args.accumulation_steps, early_stop_patience=args.early_stop_patience, checkpoint_path=f"{save_path}/dsbert_best_model.pth")
+    trainer.train(
+        train_dataloader,
+        dev_dataloader,
+        num_epochs=args.num_epochs,
+        accumulation_steps=args.accumulation_steps,
+        early_stop_patience=args.early_stop_patience,
+        checkpoint_path=f"{save_path}/dsbert_best_model.pth",
+        save_by_loss=args.save_by_loss)
 
     logger.info("=============Evaluation=============")
     
