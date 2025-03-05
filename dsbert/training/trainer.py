@@ -144,3 +144,4 @@ class Trainer:
                     break
 
             logger.info(f"Learning rate: {self.optimizer.param_groups[0]['lr']:.6f}")
+            logger.info(f"Finetune learning rate: {self.optimizer.param_groups[1]['lr']:.6f}")

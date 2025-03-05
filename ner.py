@@ -3,6 +3,7 @@ import logging
 import sys
 import os
 import datetime
+import numpy, random
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -17,6 +18,14 @@ from dsbert.training.evaluation import evaluate_entity_recognition
 from dsbert.dataset import Dataset
 from dsbert.utils import load_data, load_pretrained, count_parameters
 
+def set_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    numpy.random.seed(seed)
+    random.seed(seed)
+    
 def parse_to_args(parser: argparse.ArgumentParser):
     parser.add_argument("--bert_arch", type=str, default="roberta-base", help="bert-like architecture")
     parser.add_argument("--dataset", type=str, default="phoner_covid19", help="dataset name")
@@ -28,18 +37,24 @@ def parse_to_args(parser: argparse.ArgumentParser):
     parser.add_argument('--no_share_weights_int', dest='share_weights_int', default=True, action='store_false', 
                                help="whether to share weights across span-bert encoders")
     parser.add_argument("--num_epochs", type=int, default=10, help="num_epochs")
-    parser.add_argument("--batch_size", type=int, default=16, help="batch_size")
+    parser.add_argument("--batch_size", type=int, default=8, help="batch_size")
     parser.add_argument("--grad_clip", type=float, default=5.0, help="grad_clip")
-    parser.add_argument("--lr", type=float, default=2e-5, help="learning rate")
+    parser.add_argument("--lr", type=float, default=2e-3, help="learning rate")
+    parser.add_argument("--finetune_lr", type=float, default=2e-5, help="finetune learning rate")
+    parser.add_argument("--weight_decay", type=float, default=0.01, help="weight_decay")
     parser.add_argument("--use_amp", default=False, action="store_true", help="use_amp")
     parser.add_argument("--early_stop_patience", type=int, default=3, help="early_stop_patience")
     parser.add_argument("--accumulation_steps", type=int, default=1, help="accumulation_steps")
+    parser.add_argument("--seed", type=int, default=42, help="seed")
     
     return parser.parse_args()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     args = parse_to_args(parser)
+    
+    set_seed(args.seed)
+    
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     save_path = f"cache/{args.dataset}/{timestamp}"
     
@@ -90,15 +105,20 @@ if __name__ == "__main__":
     dev_dataloader = DataLoader(dev_dataset, batch_size=args.batch_size, shuffle= False, collate_fn=dev_dataset.collate)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle= False, collate_fn=dev_dataset.collate)
 
-    model = extractor_config.instantiate().to(device)
+    model = extractor_config.instantiate()
     num_params, trainable_params = count_parameters(model)
     logger.info(f"Number of parameters: {num_params}, trainable parameters: {trainable_params}")
 
+    remaining_params = [p for p in model.parameters() if p not in set(model.pretrained_parameters())]
+
+    optimizer = optim.Adam([
+    {'params': remaining_params, 'lr': args.lr, 'weight_decay': args.weight_decay},
+    {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': args.weight_decay}
+    ])    
+    
     steps_per_epoch = len(train_dataloader) // args.accumulation_steps
     num_training_steps = steps_per_epoch * args.num_epochs
-    warmup_steps = int(0.2 * num_training_steps)
-
-    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=0.01)
+    warmup_steps = int(0.1 * num_training_steps)
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=num_training_steps)
     trainer = Trainer(model, optimizer, scheduler=scheduler, grad_clip=args.grad_clip, use_amp=True, device=device)
 
@@ -107,7 +127,8 @@ if __name__ == "__main__":
 
     logger.info("=============Evaluation=============")
     
-    model = torch.load(f"{save_path}/dsbert_best_model.pth", map_location=device)
+    model = extractor_config.instantiate()
+    model.load_state_dict(torch.load(f"{save_path}/dsbert_best_model.pth", map_location=device, weights_only=True))
     trainer = Trainer(model, optimizer=None, device=device)
     evaluate_entity_recognition(trainer, test_dataset)
 

@@ -68,7 +68,16 @@ class DeepSpanExtractor(nn.Module):
         self.span_intermediate2 = config.span_intermediate2.instantiate() if config.span_intermediate2 else None
         self.decoder = config.decoder.instantiate()
         self.max_span_size = config.max_span_size
+    
+    def pretrained_parameters(self):
+        params = []
+        params.extend(self.bert_like.parameters())
+
+        if not self.span_bert_like.share_weights_ext:
+            params.extend(self.span_bert_like.query_bert_like.parameters())
         
+        return params
+    
     def forward2states(self, batch: Dict) -> Dict:
         bert_hidden, all_bert_hidden = self.bert_like(batch['bert_like']['sub_tok_ids'], 
                                                     batch['bert_like']['sub_mask'], 
