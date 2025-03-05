@@ -36,6 +36,11 @@ class BertLikeConfig:
         sub_tokens = [sub_tok for sublist in sub_tokens_nested for sub_tok in sublist]
         ori_indexes = [i for i, sublist in enumerate(sub_tokens_nested) for _ in sublist]
         
+        max_length = self.bert_like.config.max_position_embeddings - 2
+        if len(sub_tokens) > max_length:
+            sub_tokens = sub_tokens[:max_length]
+            ori_indexes = ori_indexes[:max_length]
+        
         sub_tok_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(sub_tokens) + [self.tokenizer.sep_token_id]
         
         example = {
