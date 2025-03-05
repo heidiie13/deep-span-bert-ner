@@ -56,8 +56,10 @@ class Dataset(torch.utils.data.Dataset):
     def collate(self, batch_examples: List[dict]):
         batch = {}
         batch['tokens'] = [ex['tokens'] for ex in batch_examples]
-        batch['seq_lens'] = torch.tensor([len(tokenized_text) for tokenized_text in batch['tokens']])
-        batch['mask'] = seq_lens2mask(batch['seq_lens'])
+        batch['seq_lens'] = torch.tensor([
+            ex['bert_like']['ori_indexes'].max().item() + 1 if ex['bert_like']['ori_indexes'].numel() > 0 else 0 for ex in batch_examples
+        ])
         
+        batch['mask'] = seq_lens2mask(batch['seq_lens'])
         batch.update(self.config.batchify(batch_examples))
         return batch

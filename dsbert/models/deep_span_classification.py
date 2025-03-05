@@ -41,22 +41,20 @@ class DeepSpanClsDecoderConfig:
         else:
             return torch.nn.CrossEntropyLoss(**kwargs)
     
-    def exemplify(self, entry: Dict) -> Dict:
-        seq_len = len(entry['tokens'])
+    def exemplify(self, entry: Dict, ori_seq_len: int = None) -> Dict:
+        seq_len = ori_seq_len if ori_seq_len is not None else len(entry['tokens'])  # Dùng seq_len sau khi cắt
         total_spans = sum(seq_len - k + 1 for k in range(1, min(self.max_span_size, seq_len) + 1))
         
         label_ids = torch.full((total_spans,), self.idx2label.index(self.none_label), dtype=torch.long)
         
         spans = [(start, start + k) for k in range(1, min(self.max_span_size, seq_len) + 1) 
-                 for start in range(seq_len - k + 1)]
+                for start in range(seq_len - k + 1)]
         
         for label, start, end in entry.get('chunks', []):
-            if end - start <= self.max_span_size:
+            if end - start <= self.max_span_size and end <= seq_len:
                 span_idx = spans.index((start, end))
                 if label in self.idx2label:
                     label_ids[span_idx] = self.idx2label.index(label)
-                else:
-                    logger.warning(f"Label '{label}' not in idx2label, ignoring this chunk.")
         
         return {'boundaries_obj': {'label_ids': label_ids}}
 
