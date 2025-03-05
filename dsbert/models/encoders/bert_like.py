@@ -32,7 +32,7 @@ class BertLikeConfig:
         Output: dict chứa input_ids, attention_mask, và (tùy chọn) ori_indexes.
         """
         tokens = entry['tokens']
-        sub_tokens_nested = [self.tokenizer.tokenize(token, truncation=True, max_length=3) for token in tokens]
+        sub_tokens_nested = [self.tokenizer.tokenize(token)[:3] for token in tokens]
         sub_tokens = [sub_tok for sublist in sub_tokens_nested for sub_tok in sublist]
         ori_indexes = [i for i, sublist in enumerate(sub_tokens_nested) for _ in sublist]
         
