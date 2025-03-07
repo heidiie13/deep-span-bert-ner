@@ -27,19 +27,32 @@ class BertLikeConfig:
 
     def exemplify(self, entry: dict):
         """
-        Chuyển đổi một entry thành định dạng phù hợp cho BertLikeEmbedder.
-        Input: dict với 'tokens' là list các từ và 'chunks' là list các tuple (label, start, end).
-        Output: dict chứa input_ids, attention_mask, và (tùy chọn) ori_indexes.
+        Converts a token sequence into sub-token IDs and original token indexes.
+        Limits each token to 3 sub-tokens if the sequence exceeds max length.
+
+        Args:
+            entry (dict): A dictionary containing a 'tokens' key with a list of tokens.
+
+        Returns:
+            dict: A dictionary containing:
+                - 'sub_tok_ids': Tensor of sub-token IDs including special tokens (CLS and SEP).
+                - 'ori_indexes': Tensor of original token indexes for each sub-token.
         """
+
         tokens = entry['tokens']
-        sub_tokens_nested = [self.tokenizer.tokenize(token)[:3] for token in tokens]
+        sub_tokens_nested = [self.tokenizer.tokenize(token) for token in tokens]
         sub_tokens = [sub_tok for sublist in sub_tokens_nested for sub_tok in sublist]
+
+        # Check if length exceeds maximum allowed length
+        if len(sub_tokens) > self.tokenizer.model_max_length - 2:
+            # If exceeds, limit each token to 3 sub-tokens
+            sub_tokens_nested = [self.tokenizer.tokenize(token)[:3] for token in tokens]
+            sub_tokens = [sub_tok for sublist in sub_tokens_nested for sub_tok in sublist]
+            
         ori_indexes = [i for i, sublist in enumerate(sub_tokens_nested) for _ in sublist]
-        
-        assert len(sub_tokens) <= self.tokenizer.model_max_length - 2, f"Sequence longer than maximum length: {len(sub_tokens)} - {self.tokenizer.model_max_length - 2}"
-        
+
         sub_tok_ids = [self.tokenizer.cls_token_id] + self.tokenizer.convert_tokens_to_ids(sub_tokens) + [self.tokenizer.sep_token_id]
-        
+
         example = {
             'sub_tok_ids': torch.tensor(sub_tok_ids),
             'ori_indexes': torch.tensor(ori_indexes)
@@ -48,10 +61,20 @@ class BertLikeConfig:
 
     def batchify(self, batch_ex: List[dict]):
         """
-        Tạo batch từ danh sách các example.
-        Input: List các dict từ exemplify.
-        Output: dict chứa batch_sub_tok_ids, batch_sub_mask, batch_ori_indexes.
+        Constructs a batch from a list of examples by processing sub-token IDs and original indexes.
+
+        Args:
+            batch_ex (List[dict]): A list of dictionaries, each containing:
+                - 'sub_tok_ids': Tensor of sub-token IDs.
+                - 'ori_indexes': Tensor of original token indexes for each sub-token.
+
+        Returns:
+            dict: A dictionary containing:
+                - 'sub_tok_ids': Padded tensor of sub-token IDs across the batch.
+                - 'sub_mask': Mask tensor indicating valid sub-token positions.
+                - 'ori_indexes': Padded tensor of original token indexes.
         """
+
         batch_sub_tok_ids = [ex['sub_tok_ids'] for ex in batch_ex]
         sub_tok_seq_lens = torch.tensor([ids.size(0) for ids in batch_sub_tok_ids])
         batch_sub_mask = seq_lens2mask(sub_tok_seq_lens)
@@ -95,11 +118,6 @@ class BertLikeEmbedder(nn.Module):
         self.bert_like.requires_grad_(not freeze)
 
     def forward(self, sub_tok_ids, sub_mask, ori_indexes=None):
-        """
-        Xử lý batch đầu vào từ batchify.
-        Input: sub_tok_ids, sub_mask, ori_indexes từ batchify.
-        Output: bert_hidden, all_bert_hidden.
-        """
         bert_outs = self.bert_like(
             input_ids=sub_tok_ids,
             attention_mask=sub_mask.long(),

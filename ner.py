@@ -27,7 +27,7 @@ def set_seed(seed):
     random.seed(seed)
     
 def parse_to_args(parser: argparse.ArgumentParser):
-    parser.add_argument("--bert_arch", type=str, default="roberta-base", help="bert-like architecture")
+    parser.add_argument("--bert_arch", type=str, default="vinai/phobert-base", help="bert-like architecture")
     parser.add_argument("--dataset", type=str, default="phoner_covid19", help="dataset name")
     parser.add_argument("--bert_freeze", default=False, action="store_true", help="bert-like freeze")
     parser.add_argument("--max_span_size", type=int, default=None, help="max_span_size")
@@ -113,15 +113,14 @@ if __name__ == "__main__":
     remaining_params = [p for p in model.parameters() if p not in set(model.pretrained_parameters())]
 
     optimizer = optim.Adam([
-    {'params': remaining_params, 'lr': args.lr, 'weight_decay': args.weight_decay},
-    {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': args.weight_decay}
+        {'params': remaining_params, 'lr': args.lr, 'weight_decay': args.weight_decay},
+        {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': 0.0}
     ])    
     
-    steps_per_epoch = len(train_dataloader) // args.accumulation_steps
-    num_training_steps = steps_per_epoch * args.num_epochs
-    warmup_steps = int(0.1 * num_training_steps)
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=warmup_steps, num_training_steps=num_training_steps)
-    trainer = Trainer(model, optimizer, scheduler=scheduler, grad_clip=args.grad_clip, use_amp=True, device=device)
+    steps_per_epoch = (len(train_dataloader) + args.accumulation_steps - 1) // args.accumulation_steps
+    num_warmup_epochs = max(2, args.num_epochs // 5)
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=num_warmup_epochs*steps_per_epoch, num_training_steps=steps_per_epoch*args.num_epochs)
+    trainer = Trainer(model, optimizer, scheduler=scheduler, grad_clip=args.grad_clip, use_amp=args.use_amp, device=device)
 
     torch.save(extractor_config, f"{save_path}/dsbert_config.pth")
     trainer.train(

@@ -75,7 +75,8 @@ class DeepSpanClsDecoderConfig:
             self.idx2label = [self.none_label] + list(counter.keys())
         else:
             self.idx2label = [self.none_label] + self.idx2label
-        logger.info(f"Labels: {self.idx2label}")
+        
+        logger.info(f"Labels: {self.idx2label[1:]}")
         
         span_sizes = [end-start for data in partitions for entry in data for label, start, end in entry['chunks']]
         logger.info(f"Max span size in data: {max(span_sizes)}")
@@ -120,8 +121,10 @@ class DeepSpanClsDecoder(nn.Module):
     def get_logits(self, batch: Dict, full_hidden: torch.Tensor, all_query_hidden: Dict[int, torch.Tensor]):
         """
         Args:
-        - full_hidden: [batch_size, seq_len, hid_dim]
-        - all_query_hidden: {k: [batch_size, seq_len - k + 1, hid_dim]}
+            full_hidden: [batch_size, seq_len, hid_dim]
+            all_query_hidden: {k: [batch_size, seq_len - k + 1, hid_dim]}
+        Returns:
+            batch_logits: List of [total_spans, num_labels]
         """
         batch_logits = []
         for i, curr_len in enumerate(batch["seq_lens"].cpu().tolist()):
@@ -158,9 +161,17 @@ class DeepSpanClsDecoder(nn.Module):
 
     def decode(self, batch: Dict, full_hidden: torch.Tensor, all_query_hidden: Dict[int, torch.Tensor]):
         """
+        Decode the logits into chunks.
+
+        Args:
+            batch (Dict): Batch of inputs
+            full_hidden (torch.Tensor): Full hidden states from the encoder
+            all_query_hidden (Dict[int, torch.Tensor]): All query hidden states from the span encoder
+
         Returns:
-            Dict (label, start, end).
+            List of List of Tuples: Each tuple contains a label, start index, and end index of a chunk
         """
+
         batch_logits = self.get_logits(batch, full_hidden, all_query_hidden)
         
         batch_chunks = []

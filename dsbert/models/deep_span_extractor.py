@@ -79,6 +79,25 @@ class DeepSpanExtractor(nn.Module):
         return params
     
     def forward2states(self, batch: Dict) -> Dict:
+        """
+        Computes the output states of the full sentence and all possible spans.
+
+        Args:
+            batch (Dict): A dictionary containing the input batch, with the following keys:
+                - 'bert_like' (Dict): A dictionary containing the input batch for the BERT-like module, with the following keys:
+                    - 'sub_tok_ids' (Tensor): The sub-token IDs of the input batch.
+                    - 'sub_mask' (Tensor): The mask indicating valid sub-token positions.
+                    - 'ori_indexes' (Tensor): The original token indexes for each sub-token.
+                - 'seq_lens' (Tensor): The sequence lengths of the input batch.
+                - 'mask' (Tensor): The mask indicating valid token positions.
+
+        Returns:
+            dict: A dictionary containing the output states, with the following keys:
+                - 'full_hidden' (Tensor): The output state of the full sentence.
+                - 'all_query_hidden' (Dict): A dictionary containing the output states of all possible spans, with the following keys:
+                    - k (int): The span size.
+                    - 'query_hidden' (Tensor): The output state of the k-sized spans.
+        """
         bert_hidden, all_bert_hidden = self.bert_like(batch['bert_like']['sub_tok_ids'], 
                                                     batch['bert_like']['sub_mask'], 
                                                     batch['bert_like']['ori_indexes'])

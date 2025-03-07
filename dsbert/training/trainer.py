@@ -31,7 +31,6 @@ class Trainer:
         self.model.to(self.device)
 
     def _to_device(self, batch: Dict) -> Dict:
-        """Move batch data to the specified device."""
         batch['bert_like']['sub_tok_ids'] = batch['bert_like']['sub_tok_ids'].to(self.device)
         batch['bert_like']['sub_mask'] = batch['bert_like']['sub_mask'].to(self.device)
         batch['bert_like']['ori_indexes'] = batch['bert_like']['ori_indexes'].to(self.device)
@@ -42,12 +41,10 @@ class Trainer:
         return batch
 
     def forward_batch(self, batch: Dict) -> torch.Tensor:
-        """Forward pass for a batch."""
         losses,_ = self.model.forward(batch)
         return losses.mean()
 
     def train_epoch(self, dataloader: DataLoader, accumulation_steps: int = 1) -> float:
-        """Train the model for one epoch."""
         self.model.train()
         epoch_losses = []
         self.optimizer.zero_grad()
@@ -55,35 +52,38 @@ class Trainer:
         for i, batch in enumerate(tqdm(dataloader, desc="Training")):
             batch = self._to_device(batch)
             with autocast(self.device.type, enabled=self.use_amp):
-                loss = self.forward_batch(batch) / accumulation_steps
-
+                batch_loss = self.forward_batch(batch)
+                loss = batch_loss / accumulation_steps
+                
             self.scaler.scale(loss).backward()
 
-            if (i + 1) % accumulation_steps == 0 or (i + 1) == len(dataloader):
-                if self.grad_clip is not None:
+            if (i + 1) % accumulation_steps == 0:
+                if self.grad_clip is not None and self.grad_clip > 0:
                     self.scaler.unscale_(self.optimizer)
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
+
+                scale_before = self.scaler.get_scale()
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
-                self.optimizer.zero_grad()
-                
-                if self.scheduler is not None:
-                    self.scheduler.step()
+                scale_after = self.scaler.get_scale()
 
-            epoch_losses.append(loss.item() * accumulation_steps)
+                if (scale_after == scale_before) and self.scheduler is not None: # Fix: raise warning when using GradScaler with scheduler
+                        self.scheduler.step()
+                self.optimizer.zero_grad()
+
+                epoch_losses.append(batch_loss.item())
 
         avg_loss = np.mean(epoch_losses)
         logger.info(f"Train Loss: {avg_loss:.4f}")
         return avg_loss
 
     def eval_epoch(self, dataloader: DataLoader) -> Tuple[float, List]:
-        """Evaluate the model for one epoch."""
         self.model.eval()
         epoch_losses = []
         all_pred_chunks = []
 
         with torch.no_grad():
-            for batch in dataloader:
+            for batch in tqdm(dataloader, desc="Evaluating"):
                 batch = self._to_device(batch)
                 with autocast('cuda', enabled=self.use_amp):
                     losses, states = self.model.forward(batch)
@@ -94,12 +94,11 @@ class Trainer:
 
         avg_loss = np.mean(epoch_losses)
         true_chunks = [sample['chunks'] for sample in dataloader.dataset.data]
-        precision, recall, f1 = precision_recall_f1_report(true_chunks, all_pred_chunks)
-        logger.info(f"Eval Loss: {avg_loss:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
+        precision, recall, f1, *_ = precision_recall_f1_report(true_chunks, all_pred_chunks)
+        logger.info(f"Eval Loss: {avg_loss:.4f}, (Micro) Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
         return avg_loss, all_pred_chunks, f1
 
     def predict(self, dataset: Dataset, batch_size: int = 32) -> List:
-        """Generate predictions for a dataset."""
         dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, collate_fn=dataset.collate)
         self.model.eval()
         all_pred_chunks = []
@@ -120,7 +119,7 @@ class Trainer:
             checkpoint_path: str = "best_model.pth",
             accumulation_steps: int = 1,
             save_by_loss: bool = False):
-        """Train the model over multiple epochs."""
+        
         best_eval_loss = float('inf')
         best_eval_f1 = -float('inf')
         patience_counter = 0

@@ -7,14 +7,17 @@ from dsbert.utils import seq_lens2mask
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, data: List[dict], config: DeepSpanExtractorConfig, training: bool=True):
-        """
-        Parameters
-        ----------
-        data : List[dict]
-            Each entry (as a dict) follows the format of:
-                {'tokens': TokenSequence,'chunks': List[tuple], 'relations': List[tuple], ...}
-            where (1) `label` is a str (or int).  
-                  (2) each `chunk` follows the format of (chunk_type, chunk_start, chunk_end). 
+        """Construct a dataset from a list of data entries.
+
+        Args:
+            data (List[dict]): A list of data entries. Each entry is a dictionary
+                with the following keys:
+                    'tokens': TokenSequence
+                    'chunks': List[tuple(chunk_type, chunk_start, chunk_end)]
+                    'relations': List[tuple]
+
+        Returns:
+            Dataset: A dataset object.
         """
         super().__init__()
         self.data = data
@@ -26,6 +29,16 @@ class Dataset(torch.utils.data.Dataset):
         
     @property
     def summary(self):
+        """Returns a summary of the dataset.
+
+        The summary includes the following information:
+            - The number of sequences in the dataset.
+            - The average and maximum lengths of the `tokens` sequences.
+            - The total number of chunks and the number of chunk types.
+
+        Returns:
+            str: A string containing the summary information.
+        """
         summary = []
         num_seqs = len(self.data)
         summary.append(f"The dataset consists {num_seqs:,} sequences")

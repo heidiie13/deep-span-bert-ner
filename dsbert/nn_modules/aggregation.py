@@ -14,13 +14,26 @@ class SequenceGroupAggregating(nn.Module):
 
     def forward(self, hidden: torch.Tensor, ori_indexes: torch.Tensor) -> torch.Tensor:
         """
-        Gộp các biểu diễn sub-token thành biểu diễn token gốc.
+        Aggregates sub-token representations into original token representations
+        based on the specified mode.
+
         Args:
-            hidden: Tensor biểu diễn sub-token (shape: [batch_size, num_sub_tokens, hid_dim])
-            ori_indexes: Tensor ánh xạ sub-token về token gốc (shape: [batch_size, num_sub_tokens])
+            hidden (torch.Tensor): Tensor of shape [batch_size, num_sub_tokens, hid_dim]
+                containing the hidden states of sub-tokens.
+            ori_indexes (torch.Tensor): Tensor of shape [batch_size, num_sub_tokens]
+                containing the indices mapping sub-tokens to original tokens.
+
         Returns:
-            aggregated: Tensor biểu diễn token gốc (shape: [batch_size, num_tokens, hid_dim])
+            torch.Tensor: Tensor of shape [batch_size, max_num_tokens, hid_dim]
+                containing the aggregated representations of original tokens.
+
+        The aggregation is performed according to the specified mode:
+        - 'mean': Averages the hidden states of sub-tokens for each original token.
+        - 'max': Takes the maximum of the hidden states of sub-tokens for each original token.
+        - 'min': Takes the minimum of the hidden states of sub-tokens for each original token.
+        - 'sum': Sums the hidden states of sub-tokens for each original token.
         """
+
         batch_size, num_sub_tokens, hid_dim = hidden.size()
         device = hidden.device
 
@@ -38,13 +51,11 @@ class SequenceGroupAggregating(nn.Module):
                     mask[b, s, t] = 1
 
         if self.mode == 'mean':
-            # Tính trung bình các sub-token cho mỗi token gốc
             summed = torch.bmm(mask.transpose(1, 2), hidden)  # [batch_size, max_num_tokens, hid_dim]
             counts = mask.sum(dim=1, keepdim=True).clamp(min=1)  # [batch_size, 1, max_num_tokens]
             aggregated = summed / counts.transpose(1, 2)
         
         elif self.mode == 'max':
-            # Lấy giá trị tối đa theo sub-token
             hidden_expanded = hidden.unsqueeze(2).expand(-1, -1, max_num_tokens, -1)
             mask_expanded = mask.unsqueeze(-1).expand(-1, -1, -1, hid_dim)
             masked_hidden = hidden_expanded.masked_fill(~mask_expanded.bool(), float('-inf'))
@@ -52,14 +63,12 @@ class SequenceGroupAggregating(nn.Module):
         
         
         elif self.mode == 'min':
-            # Lấy giá trị nhỏ nhất theo sub-token
             hidden_expanded = hidden.unsqueeze(2).expand(-1, -1, max_num_tokens, -1)
             mask_expanded = mask.unsqueeze(-1).expand(-1, -1, -1, hid_dim)
             masked_hidden = hidden_expanded.masked_fill(~mask_expanded.bool(), float('inf'))
             aggregated, _ = masked_hidden.min(dim=1)
             
         elif self.mode == 'sum':
-            # Tính tổng các sub-token
             aggregated = torch.bmm(mask.transpose(1, 2), hidden)
 
         return aggregated
@@ -67,11 +76,6 @@ class SequenceGroupAggregating(nn.Module):
 
 class SequencePooling(nn.Module):
     def __init__(self, mode: str = 'max'):
-        """
-        Gộp các vector trong chuỗi thành một vector duy nhất.
-        Args:
-            mode: Phương pháp gộp ('max', 'mean', 'sum')
-        """
         super().__init__()
         self.mode = mode.lower()
         assert self.mode in ['max', 'mean', 'sum'], f"Mode {mode} is not supported!"
@@ -79,9 +83,9 @@ class SequencePooling(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: Tensor đầu vào [batch_size, seq_len, hid_dim]
+            x: [batch_size, seq_len, hid_dim]
         Returns:
-            Tensor đầu ra [batch_size, hid_dim]
+            [batch_size, hid_dim]
         """
         if self.mode == 'max':
             return x.max(dim=1)[0]
@@ -94,16 +98,6 @@ class SequencePooling(nn.Module):
 class SequenceAttention(nn.Module):
     def __init__(self, key_dim: int, query_dim: int = None, num_heads: int = 1, 
                  scoring: str = 'dot', drop_rate: float = 0.0, external_query: bool = False):
-        """
-        Gộp chuỗi bằng attention với các mode khác nhau, không sử dụng mask.
-        Args:
-            key_dim: Kích thước của key (và value)
-            query_dim: Kích thước của query (mặc định bằng key_dim)
-            num_heads: Số đầu attention (mặc định 1)
-            scoring: Phương pháp tính điểm ('dot', 'scaled_dot', 'multiplicative', 'additive')
-            drop_rate: Tỷ lệ dropout cho trọng số attention
-            external_query: Sử dụng query bên ngoài hay query nội bộ (tham số học)
-        """
         super().__init__()
         if query_dim is None:
             query_dim = key_dim
@@ -134,7 +128,6 @@ class SequenceAttention(nn.Module):
 
     def compute_scores(self, query: torch.Tensor, key: torch.Tensor):
         """
-        Tính điểm attention dựa trên query và key, không sử dụng mask.
         Args:
             query: Tensor [batch_size, query_step, query_dim]
             key: Tensor [batch_size, key_step, key_dim]
@@ -170,7 +163,7 @@ class SequenceAttention(nn.Module):
 
     def _prepare_multiheads(self, x: torch.Tensor):
         """
-        Chuẩn bị tensor cho multi-head attention.
+        Prepare tensor for multi-head attention.
         Args:
             x: Tensor [batch_size, step, dim]
         Returns:
@@ -182,7 +175,7 @@ class SequenceAttention(nn.Module):
 
     def _restore_multiheads(self, x: torch.Tensor):
         """
-        Khôi phục tensor sau multi-head attention.
+        Restore tensor sau multi-head attention.
         Args:
             x: Tensor [batch_size * num_heads, step, dim / num_heads]
         Returns:
