@@ -116,7 +116,7 @@ if __name__ == "__main__":
 
     remaining_params = [p for p in model.parameters() if p not in set(model.pretrained_parameters())]
 
-    optimizer = optim.Adam([
+    optimizer = optim.AdamW([
         {'params': remaining_params, 'lr': args.lr, 'weight_decay': args.weight_decay},
         {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': 0.0}
     ])    
