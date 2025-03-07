@@ -61,7 +61,11 @@ if __name__ == "__main__":
     
     if not os.path.exists(save_path):
         os.makedirs(save_path, exist_ok=True)
-            
+    
+    logger = logging.getLogger()
+    if logger.hasHandlers():
+        logger.handlers.clear()
+        
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
