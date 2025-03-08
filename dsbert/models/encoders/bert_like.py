@@ -24,6 +24,11 @@ class BertLikeConfig:
     @property
     def out_dim(self):
         return self.hid_dim
+    
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['bert_like'] = None
+        return state
 
     def exemplify(self, entry: dict):
         """

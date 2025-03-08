@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class Trainer:
     def __init__(self, 
                  model: DeepSpanExtractor, 
-                 optimizer: torch.optim.Optimizer, 
+                 optimizer: Optional[torch.optim.Optimizer] = None, 
                  scheduler: Optional[torch.optim.lr_scheduler.LambdaLR] = None, 
                  grad_clip: Optional[float] = None, 
                  use_amp: bool = False, 
@@ -45,6 +45,9 @@ class Trainer:
         return losses.mean()
 
     def train_epoch(self, dataloader: DataLoader, accumulation_steps: int = 1) -> float:
+        if self.optimizer is None:
+            raise ValueError("Optimizer is not defined. Please provide an optimizer to the Trainer.")
+        
         self.model.train()
         epoch_losses = []
         self.optimizer.zero_grad()
@@ -104,7 +107,7 @@ class Trainer:
         all_pred_chunks = []
 
         with torch.no_grad():
-            for batch in dataloader:
+            for batch in tqdm(dataloader, desc="Predicting"):
                 batch = self._to_device(batch)
                 pred_chunks = self.model.decode(batch)
                 all_pred_chunks.extend(pred_chunks)
@@ -115,11 +118,16 @@ class Trainer:
             train_dataloader: DataLoader, 
             eval_dataloader: Optional[DataLoader] = None, 
             num_epochs: int = 10, 
-            early_stop_patience: int = 3, 
+            early_stop_patience: Optional[int] = None, 
             checkpoint_path: str = "best_model.pth",
             accumulation_steps: int = 1,
             save_by_loss: bool = False):
         
+        if early_stop_patience is None:
+            early_stop_patience = num_epochs
+        elif early_stop_patience <= 0:
+            raise ValueError("early_stop_patience must be a positive integer or None.")
+            
         best_eval_loss = float('inf')
         best_eval_f1 = -float('inf')
         patience_counter = 0

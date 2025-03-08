@@ -35,6 +35,11 @@ class SpanBertLikeConfig:
     @property
     def out_dim(self):
         return self.hid_dim
+    
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['bert_like'] = None
+        return state
 
     def instantiate(self):
         return SpanBertLikeEncoder(self)

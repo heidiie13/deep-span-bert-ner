@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class DeepSpanClsDecoderConfig:
     def __init__(self, **kwargs):
-        self.affine = kwargs.pop('affine', EncoderConfig(arch='FFN', hid_dim=300, num_layers=1, hid_drop_rate=0.2))
+        self.affine = kwargs.pop('affine', EncoderConfig(arch='FFN', hid_dim=300, num_layers=1, hid_drop_rate=0.2, in_drop_rates=0.4))
         
         self.max_span_size_ceiling = kwargs.pop('max_span_size_ceiling', 25)
         self.max_span_size = kwargs.pop('max_span_size', None)
@@ -69,32 +69,34 @@ class DeepSpanClsDecoderConfig:
         batch = {'boundaries_objs': [ex['boundaries_obj'] for ex in batch_examples]}
         return batch
     
-    def build_vocab(self, *partitions):
+    def build_vocab(self, *partitions):        
+        spans = [(label, start, end) for data in partitions for entry in data for label, start, end in entry['chunks']]
+
+        counter = Counter(label for label, _, _ in spans)
         if self.idx2label is None:
-            counter = Counter(label for data in partitions for entry in data for label, start, end in entry['chunks'])
             self.idx2label = [self.none_label] + list(counter.keys())
         else:
             self.idx2label = [self.none_label] + self.idx2label
-        
+
         logger.info(f"Labels: {self.idx2label[1:]}")
-        
-        span_sizes = [end-start for data in partitions for entry in data for label, start, end in entry['chunks']]
-        logger.info(f"Max span size in data: {max(span_sizes)}")
-        
-        if (self.max_span_size is not None) and (self.max_span_size > self.max_span_size_ceiling):
-            raise ValueError("Max span size cannot be greater than max span size ceiling")
-        
+
+        span_sizes = [end - start for _, start, end in spans]
+        max_span = max(span_sizes, default=0)
+        logger.info(f"Max span size in data: {max_span}")
+
         if self.max_span_size is None:
-            self.max_span_size = min(max(span_sizes), self.max_span_size_ceiling)
+            self.max_span_size = min(max_span, self.max_span_size_ceiling)
             logger.warning(f"The `max_span_size` is set to {self.max_span_size}")
-        
-        size_counter = Counter(end-start for data in partitions for entry in data for label, start, end in entry['chunks'])
-        
+        elif self.max_span_size > self.max_span_size_ceiling:
+            raise ValueError(f"Max span size ({self.max_span_size}) cannot be greater than max span size ceiling ({self.max_span_size_ceiling})")
+
+        size_counter = Counter(span_sizes)
         num_spans = sum(size_counter.values())
-        num_oov_spans = sum(num for size, num in size_counter.items() if size > self.max_span_size)
+        num_oov_spans = sum(count for size, count in size_counter.items() if size > self.max_span_size)
+
         if num_oov_spans > 0:
-            logger.warning(f"OOV positive spans: {num_oov_spans} ({num_oov_spans/num_spans*100:.2f}%) with max_span_size: {self.max_span_size}")
-            
+            logger.warning(f"OOV positive spans: {num_oov_spans} ({num_oov_spans / num_spans * 100:.2f}%) with max_span_size: {self.max_span_size}")
+
     def instantiate(self):
         return DeepSpanClsDecoder(self)
 
