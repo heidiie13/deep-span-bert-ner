@@ -86,7 +86,7 @@ def initialize_datasets_and_config(args):
     test_dataset = Dataset(test_data, extractor_config)
     
     train_dataset.build_vocabs(dev_data, test_data)
-    
+
     return train_dataset, dev_dataset, test_dataset, extractor_config
 
 def build_model(extractor_config):
@@ -148,6 +148,8 @@ if __name__ == "__main__":
     logger.info(args.__dict__)
 
     train_dataset, dev_dataset, test_dataset, extractor_config = initialize_datasets_and_config(args)
+    logger.info(f"Summary train dataset: \n{train_dataset.summary}")
+
     model, num_params, trainable_params = build_model(extractor_config)
     
     logger.info(f"Number of parameters: {num_params}, trainable parameters: {trainable_params}")
