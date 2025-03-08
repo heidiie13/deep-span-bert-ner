@@ -81,9 +81,9 @@ def initialize_datasets_and_config(args):
         max_span_size=args.max_span_size
     )
     
-    train_dataset = Dataset(train_data[0:5], extractor_config)
-    dev_dataset = Dataset(dev_data[0:2], extractor_config)
-    test_dataset = Dataset(test_data[0:2], extractor_config)
+    train_dataset = Dataset(train_data, extractor_config)
+    dev_dataset = Dataset(dev_data, extractor_config)
+    test_dataset = Dataset(test_data, extractor_config)
     
     train_dataset.build_vocabs(dev_data, test_data)
     
