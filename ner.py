@@ -29,19 +29,25 @@ def set_seed(seed):
     
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--bert_arch", type=str, default="vinai/phobert-base")
     parser.add_argument("--dataset", type=str, default="phoner_covid19")
+    
+    parser.add_argument("--bert_arch", type=str, default="vinai/phobert-base")
+    parser.add_argument("--bert_drop_rate", type=float, default=0.2)
     parser.add_argument("--bert_freeze", action="store_true")
+    
     parser.add_argument("--max_span_size", type=int, default=None)
+    parser.add_argument("--init_drop_rate", type=float, default=0.2)
     parser.add_argument("--num_layers", type=int, default=None)
+    
     parser.add_argument("--no_share_weights_ext", dest='share_weights_ext', action='store_false', default=True)
     parser.add_argument("--no_share_weights_int", dest='share_weights_int', action='store_false', default=True)
+    parser.add_argument("--no_share_interm2", dest='share_interm2', action='store_false', default=True)
+    
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--grad_clip", type=float, default=5.0)
-    parser.add_argument("--lr", type=float, default=2e-3)
+    parser.add_argument("--lr", type=float, default=2e-4)
     parser.add_argument("--finetune_lr", type=float, default=2e-5)
-    parser.add_argument("--weight_decay", type=float, default=0.01)
     parser.add_argument("--use_amp", action="store_true", default=False)
     parser.add_argument("--early_stop_patience", type=int, default=None)
     parser.add_argument("--accumulation_steps", type=int, default=1)
@@ -66,18 +72,23 @@ def setup_logger(save_path):
     )
     return logging.getLogger(__name__)
 
-def initialize_datasets_and_config(args):
+def initialize_datasets_and_config(args: argparse.Namespace):
     train_data, dev_data, test_data = load_data(args.dataset)
-    bert_model, tokenizer = load_pretrained(args.bert_arch)
+    bert_model, tokenizer = load_pretrained(args.bert_arch, args.bert_drop_rate)
     
     bert_config = BertLikeConfig(tokenizer=tokenizer, bert_like=bert_model, freeze=args.bert_freeze, arch=args.bert_arch)
-    span_config = SpanBertLikeConfig(bert_like=bert_model, freeze=args.bert_freeze, 
+    span_config = SpanBertLikeConfig(bert_like=bert_model,
+                                     freeze=args.bert_freeze, 
+                                     init_drop_rate=args.init_drop_rate,
                                      share_weights_ext=args.share_weights_ext, 
                                      share_weights_int=args.share_weights_int, 
                                      num_layers=args.num_layers)
     decoder_config = DeepSpanClsDecoderConfig()
     extractor_config = DeepSpanExtractorConfig(
-        decoder=decoder_config, bert_like=bert_config, span_bert_like=span_config,
+        decoder=decoder_config,
+        bert_like=bert_config,
+        span_bert_like=span_config,
+        share_interm2=args.share_interm2,
         max_span_size=args.max_span_size
     )
     
@@ -99,9 +110,9 @@ def train_model(args, model, train_dataset, dev_dataset, save_path, device):
     dev_dataloader = DataLoader(dev_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=dev_dataset.collate)
 
     remaining_params = [p for p in model.parameters() if p not in set(model.pretrained_parameters())]
-
+    
     optimizer = optim.AdamW([
-        {'params': remaining_params, 'lr': args.lr, 'weight_decay': args.weight_decay},
+        {'params': remaining_params, 'lr': args.lr, 'weight_decay': 0.1},
         {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': 0.0}
     ])    
 
@@ -122,7 +133,7 @@ def train_model(args, model, train_dataset, dev_dataset, save_path, device):
 
 def load_model_and_config_for_evaluation(config_path, model_path, device):
     model_config = torch.load(config_path, weights_only=False)
-    bert_model, _ = load_pretrained(model_config.bert_like.arch)
+    bert_model, _ = load_pretrained(model_config.bert_like.arch, args.bert_drop_rate)
     
     model_config.bert_like.bert_like = bert_model
     model_config.span_bert_like.bert_like = bert_model
@@ -149,7 +160,6 @@ if __name__ == "__main__":
 
     train_dataset, dev_dataset, test_dataset, extractor_config = initialize_datasets_and_config(args)
     logger.info(f"Summary train dataset: \n{train_dataset.summary}")
-
     model, num_params, trainable_params = build_model(extractor_config)
     
     logger.info(f"Number of parameters: {num_params}, trainable parameters: {trainable_params}")

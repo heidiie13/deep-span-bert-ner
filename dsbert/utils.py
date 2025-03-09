@@ -2,7 +2,7 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 import json
 import os
-from typing import List, Dict, Tuple
+from typing import List
 
 
 def seq_lens2mask(seq_lens: torch.Tensor, max_len: int = None) -> torch.Tensor:
@@ -41,7 +41,7 @@ def count_parameters(model):
     return total_params, trainable_params
 
 
-def load_pretrained(pretrained_str):
+def load_pretrained(pretrained_str, bert_drop_rate: float = 0.2):
     """
     Load a pre-trained model and its corresponding tokenizer.
 
@@ -54,7 +54,7 @@ def load_pretrained(pretrained_str):
     model_name = pretrained_str
     model_path = f"assets/transformers/{model_name}"
 
-    pretrained_model = AutoModel.from_pretrained(model_path)
+    pretrained_model = AutoModel.from_pretrained(model_path, hidden_dropout_prob=bert_drop_rate, attention_probs_dropout_prob=bert_drop_rate)
 
     tokenizer = AutoTokenizer.from_pretrained(model_path, truncation=True)
 

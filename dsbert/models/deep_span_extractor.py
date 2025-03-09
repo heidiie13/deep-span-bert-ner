@@ -10,7 +10,7 @@ class DeepSpanExtractorConfig:
     def __init__(self, decoder: DeepSpanClsDecoderConfig, **kwargs):
         self.bert_like: BertLikeConfig = kwargs.pop('bert_like', None)
         self.span_bert_like: SpanBertLikeConfig = kwargs.pop('span_bert_like', None)
-        self.intermediate2: EncoderConfig = kwargs.pop('intermediate2', EncoderConfig(arch='LSTM', hid_dim=400))
+        self.intermediate2: EncoderConfig = kwargs.pop('intermediate2', EncoderConfig(arch='LSTM', hid_dim=400, in_drop_rates=0.4))
         self.share_interm2 = kwargs.pop('share_interm2', True)
         self.decoder = decoder
         self.max_span_size = kwargs.pop('max_span_size', None)
