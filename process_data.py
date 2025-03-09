@@ -155,6 +155,10 @@ if __name__=="__main__":
     convert_bio_to_json("data/origin_data/phoner_covid19/dev.conll", "data/processed_data/phoner_covid19/dev.json")
     convert_bio_to_json("data/origin_data/phoner_covid19/train.conll", "data/processed_data/phoner_covid19/train.json")
     
+    convert_bio_to_json("data/origin_data/phoner_covid19_syllable/test.conll", "data/processed_data/phoner_covid19_syllable/test.json")
+    convert_bio_to_json("data/origin_data/phoner_covid19_syllable/dev.conll", "data/processed_data/phoner_covid19_syllable/dev.json")
+    convert_bio_to_json("data/origin_data/phoner_covid19_syllable/train.conll", "data/processed_data/phoner_covid19_syllable/train.json")
+    
     convert_bio_to_json("data/origin_data/vimedner/test.txt", "data/processed_data/vimedner/test.json")
     convert_bio_to_json("data/origin_data/vimedner/dev.txt", "data/processed_data/vimedner/dev.json")
     convert_bio_to_json("data/origin_data/vimedner/train.txt", "data/processed_data/vimedner/train.json")

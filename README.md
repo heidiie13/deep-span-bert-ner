@@ -2,8 +2,8 @@
 
 - Create an environment:
 ```sh
-conda create -n dspert python=3.11.9
-conda activate dspert
+conda create -n dsbert python=3.11.9 -y
+conda activate dsbert
 ```
 
 - Install dependencies (GPU):
