@@ -44,6 +44,7 @@ def parse_args():
     parser.add_argument("--no_share_interm2", dest='share_interm2', action='store_false', default=True)
     
     parser.add_argument("--num_epochs", type=int, default=10)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--grad_clip", type=float, default=5.0)
     parser.add_argument("--lr", type=float, default=2e-4)
@@ -112,7 +113,7 @@ def train_model(args, model, train_dataset, dev_dataset, save_path, device):
     remaining_params = [p for p in model.parameters() if p not in set(model.pretrained_parameters())]
     
     optimizer = optim.AdamW([
-        {'params': remaining_params, 'lr': args.lr, 'weight_decay': 0.1},
+        {'params': remaining_params, 'lr': args.lr, 'weight_decay': args.weight_decay},
         {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': 0.0}
     ])    
 
