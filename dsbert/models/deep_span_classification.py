@@ -61,11 +61,6 @@ class DeepSpanClsDecoderConfig:
         return {'boundaries_obj': {'label_ids': label_ids}}
 
     def batchify(self, batch_examples: List[Dict]) -> Dict:
-        """
-        Tạo batch từ danh sách examples.
-        - batch_examples: List các dictionary từ exemplify.
-        - Trả về: Dictionary chứa 'boundaries_objs'. 'seq_lens' đã được tạo trong Dataset.collate.
-        """
         batch = {'boundaries_objs': [ex['boundaries_obj'] for ex in batch_examples]}
         return batch
     

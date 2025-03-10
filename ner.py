@@ -97,7 +97,7 @@ def initialize_datasets_and_config(args: argparse.Namespace):
     dev_dataset = Dataset(dev_data, extractor_config)
     test_dataset = Dataset(test_data, extractor_config)
     
-    train_dataset.build_vocabs(dev_data, test_data)
+    train_dataset.build_vocabs(dev_data)
 
     return train_dataset, dev_dataset, test_dataset, extractor_config
 
@@ -114,7 +114,7 @@ def train_model(args, model, train_dataset, dev_dataset, save_path, device):
     
     optimizer = optim.AdamW([
         {'params': remaining_params, 'lr': args.lr, 'weight_decay': args.weight_decay},
-        {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': 0.0}
+        {'params': model.pretrained_parameters(), 'lr': args.finetune_lr, 'weight_decay': args.weight_decay}
     ])    
 
     steps_per_epoch = (len(train_dataloader) + args.accumulation_steps - 1) // args.accumulation_steps
